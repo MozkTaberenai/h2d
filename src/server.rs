@@ -6,6 +6,7 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::{watch, Semaphore};
 use tokio_rustls::TlsAcceptor;
+use tracing::Instrument;
 use tracing::{error, info, span, Level};
 
 #[derive(Debug)]
@@ -125,15 +126,13 @@ where
                         tcp_stream,
                     };
 
-                    tokio::task::spawn(async move {
-                        let span = span!(Level::ERROR, "tcp_conn", %peer_addr);
-                        let enter = span.enter();
-                        tcp_sess.begin().await;
-                        // let current_conns = max_conns - conn_semaphore.available_permits();
-                        // info!(%current_conns, %max_conns, "tcp connection finished");
-                        info!("tcp connection finished");
-                        drop(enter);
-                    });
+                    tokio::task::spawn(
+                        async move {
+                            tcp_sess.begin().await;
+                            info!("tcp session finished");
+                        }
+                        .instrument(span!(Level::ERROR, "tcp_session", %peer_addr)),
+                    );
                 }
             }
         }
