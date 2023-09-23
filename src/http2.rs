@@ -1,10 +1,7 @@
 use crate::tokiort::*;
-// use futures_util::future;
 use hyper::service::HttpService;
-// use std::pin::pin;
 use std::sync::Arc;
 use tokio::sync::{watch, OwnedSemaphorePermit};
-// use tokio_stream::StreamExt;
 use tracing::{error, info};
 
 pub(crate) struct Http2<I, S> {
@@ -38,8 +35,6 @@ where
         } = self;
 
         let conn = http2.serve_connection(io, service);
-
-        // let mut shutdown_stream = crate::shutdown::stream();
 
         info!("http2 connection started");
 
@@ -80,25 +75,5 @@ where
             }
         }
         drop(permit);
-
-        // match future::select(pin!(shutdown_stream.next()), conn).await {
-        //     future::Either::Left((_shutdown, _conn)) => {}
-        //     future::Either::Right((conn_r, _shutdown)) => {
-        //         if let Err(err) = conn_r {
-        //             use std::error::Error;
-        //             use std::io::ErrorKind;
-        //             if let Some(err) = err.source() {
-        //                 if let Some(io_err) = err.downcast_ref::<std::io::Error>() {
-        //                     if let ErrorKind::UnexpectedEof = io_err.kind() {
-        //                         return;
-        //                     }
-        //                 }
-        //             }
-        //             error!(%err, "http2 connection finished with error");
-        //         }
-        //         drop(permit);
-        //         info!("http2 connection finished");
-        //     }
-        // }
     }
 }
