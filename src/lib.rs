@@ -1,5 +1,4 @@
 mod config;
-mod error;
 mod handle;
 mod http2;
 mod server;
@@ -12,7 +11,6 @@ mod tokiort;
 // ToDo: use https://github.com/hyperium/hyper-util
 
 pub use crate::config::Config;
-pub use crate::error::Error;
 pub use crate::handle::Handle;
 pub use crate::server::Server;
 
