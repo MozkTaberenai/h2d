@@ -16,9 +16,5 @@ pub use crate::error::Error;
 pub use crate::handle::Handle;
 pub use crate::server::Server;
 
-// ToDo: AnyError -> Owned Error type
-pub type AnyError = Box<dyn std::error::Error + Send + Sync>;
-type Result<T, E = AnyError> = std::result::Result<T, E>;
-
 #[cfg(test)]
 mod test;

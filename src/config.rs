@@ -1,5 +1,5 @@
 use crate::tokiort::*;
-use crate::{Result, Server};
+use crate::Server;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
@@ -42,7 +42,7 @@ impl Config {
         self
     }
 
-    pub fn tls(mut self, pem: impl AsRef<Path>) -> Result<Self> {
+    pub fn tls(mut self, pem: impl AsRef<Path>) -> Result<Self, crate::tls::Error> {
         let tls_acceptor = crate::tls::acceptor(pem)?;
         self.tls.replace(tls_acceptor);
         Ok(self)
