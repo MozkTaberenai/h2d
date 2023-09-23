@@ -1,7 +1,6 @@
 use crate::tcp::TcpSession;
 use crate::tokiort::*;
 use crate::{Handle, Result};
-use hyper::service::HttpService;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
@@ -21,7 +20,7 @@ pub struct Server<S> {
 
 impl<S, B> Server<S>
 where
-    S: HttpService<hyper::body::Incoming, ResBody = B> + Clone + Send + 'static,
+    S: hyper::service::HttpService<hyper::body::Incoming, ResBody = B> + Clone + Send + 'static,
     S::Future: Send,
     S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     B: http_body::Body + Send + 'static,

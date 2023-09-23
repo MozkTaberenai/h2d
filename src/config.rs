@@ -64,7 +64,15 @@ impl Config {
         self
     }
 
-    pub fn build<S>(self, service: S) -> Server<S> {
+    pub fn build<S, B>(self, service: S) -> Server<S>
+    where
+        S: hyper::service::HttpService<hyper::body::Incoming, ResBody = B> + Clone + Send + 'static,
+        S::Future: Send,
+        S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+        B: http_body::Body + Send + 'static,
+        B::Data: Send + Sync,
+        B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    {
         let max_conns = match self.max_conns {
             0 => tokio::sync::Semaphore::MAX_PERMITS,
             n => n,
