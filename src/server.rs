@@ -62,16 +62,21 @@ where
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
         let shutdown_tx = Arc::new(shutdown_tx);
 
+        let max_conns = self.max_conns;
+        let conn_semaphore = self.conn_semaphore.clone();
+
         let join_handle = tokio::task::spawn(self.tcp_accept_loop(
             tcp_listener,
             shutdown_tx.clone(),
             shutdown_rx,
         ));
 
-        Ok(Handle {
+        Ok(Handle::new(
             shutdown_tx,
             join_handle,
-        })
+            max_conns,
+            conn_semaphore,
+        ))
     }
 
     async fn tcp_accept_loop(
