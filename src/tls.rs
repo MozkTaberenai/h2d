@@ -47,7 +47,10 @@ impl std::error::Error for Error {
     }
 }
 
-pub fn acceptor(pem: impl AsRef<Path>) -> Result<tokio_rustls::TlsAcceptor, Error> {
+pub fn acceptor(
+    pem: impl AsRef<Path>,
+    session_storage: Option<Arc<impl rustls::server::StoresServerSessions + 'static>>,
+) -> Result<tokio_rustls::TlsAcceptor, Error> {
     let pem = pem.as_ref();
     let pem_buf = std::fs::read(pem).map_err(|source| Error::Io {
         source,
@@ -108,6 +111,9 @@ pub fn acceptor(pem: impl AsRef<Path>) -> Result<tokio_rustls::TlsAcceptor, Erro
         .with_no_client_auth()
         .with_single_cert(certs, key)?;
     server_config.alpn_protocols = vec![b"h2".to_vec()];
+    if let Some(session_storage) = session_storage {
+        server_config.session_storage = session_storage;
+    }
 
     let tls_acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(server_config));
 

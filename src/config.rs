@@ -42,8 +42,12 @@ impl Config {
         self
     }
 
-    pub fn tls(mut self, pem: impl AsRef<Path>) -> Result<Self, crate::tls::Error> {
-        let tls_acceptor = crate::tls::acceptor(pem)?;
+    pub fn tls(
+        mut self,
+        pem: impl AsRef<Path>,
+        session_storage: Option<Arc<impl rustls::server::StoresServerSessions + 'static>>,
+    ) -> Result<Self, crate::tls::Error> {
+        let tls_acceptor = crate::tls::acceptor(pem, session_storage)?;
         self.tls.replace(tls_acceptor);
         Ok(self)
     }
