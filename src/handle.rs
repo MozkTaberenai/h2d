@@ -1,3 +1,4 @@
+use crate::Stats;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{watch, Semaphore};
 
@@ -24,8 +25,13 @@ impl Handle {
         }
     }
 
-    pub fn current_conns(&self) -> usize {
-        self.max_conns - self.conn_semaphore.available_permits()
+    pub fn stats(&self) -> Stats {
+        let max_conns = self.max_conns;
+        let curr_conns = max_conns - self.conn_semaphore.available_permits();
+        Stats {
+            curr_conns,
+            max_conns,
+        }
     }
 
     pub async fn shutdown(&self) {
