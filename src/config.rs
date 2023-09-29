@@ -1,7 +1,6 @@
 use crate::tokiort::*;
 use crate::Server;
 use std::net::SocketAddr;
-use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Semaphore;
@@ -12,17 +11,6 @@ pub struct Config {
     max_conns: usize,
     tls: Option<TlsAcceptor>,
     http2: hyper::server::conn::http2::Builder<TokioExecutor>,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            socket_addr: "[::]:443".parse().unwrap(),
-            max_conns: 10000,
-            tls: None,
-            http2: hyper::server::conn::http2::Builder::new(TokioExecutor),
-        }
-    }
 }
 
 impl Config {
@@ -42,16 +30,6 @@ impl Config {
         self
     }
 
-    pub fn tls(
-        mut self,
-        pem: impl AsRef<Path>,
-        session_storage: Option<Arc<impl rustls::server::StoresServerSessions + 'static>>,
-    ) -> Result<Self, crate::tls::Error> {
-        let tls_acceptor = crate::tls::acceptor(pem, session_storage)?;
-        self.tls.replace(tls_acceptor);
-        Ok(self)
-    }
-
     pub fn http2_conf(
         mut self,
         f: impl FnOnce(&mut hyper::server::conn::http2::Builder<TokioExecutor>),
@@ -65,6 +43,13 @@ impl Config {
             .timer(TokioTimer)
             .adaptive_window(true)
             .keep_alive_interval(Some(Duration::from_secs(60)));
+        self
+    }
+
+    pub fn use_tls(mut self, mut server_config: rustls::ServerConfig) -> Self {
+        server_config.alpn_protocols = vec![b"h2".to_vec()];
+        let tls_acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(server_config));
+        self.tls.replace(tls_acceptor);
         self
     }
 
