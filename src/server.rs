@@ -1,4 +1,4 @@
-use crate::tcp::TcpSession;
+use crate::tcp_accept::TcpAcceptLoop;
 use crate::tokiort::*;
 use crate::Handle;
 use std::net::SocketAddr;
@@ -6,8 +6,7 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::{watch, Semaphore};
 use tokio_rustls::TlsAcceptor;
-use tracing::Instrument;
-use tracing::{error, info, span, Level};
+use tracing::info;
 
 #[derive(Debug)]
 pub enum Error {
@@ -57,101 +56,30 @@ where
             .await
             .map_err(Error::Bind)?;
         let listen_on = tcp_listener.local_addr().map_err(Error::LocalAddr)?;
-        info!(%listen_on, "h2d::Server started");
+
+        info!(%listen_on);
 
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
         let shutdown_tx = Arc::new(shutdown_tx);
 
-        let max_conns = self.max_conns;
-        let conn_semaphore = self.conn_semaphore.clone();
-
-        let join_handle = tokio::task::spawn(self.tcp_accept_loop(
+        let tcp_accept_loop = TcpAcceptLoop {
+            max_conns: self.max_conns,
+            conn_semaphore: self.conn_semaphore.clone(),
+            tls: self.tls,
+            http2: self.http2,
+            service: self.service,
             tcp_listener,
-            shutdown_tx.clone(),
+            shutdown_tx: shutdown_tx.clone(),
             shutdown_rx,
-        ));
+        };
+
+        let join_handle = tokio::task::spawn(tcp_accept_loop.run());
 
         Ok(Handle::new(
             shutdown_tx,
             join_handle,
-            max_conns,
-            conn_semaphore,
+            self.max_conns,
+            self.conn_semaphore,
         ))
-    }
-
-    async fn tcp_accept_loop(
-        self,
-        tcp_listener: TcpListener,
-        shutdown_tx: Arc<watch::Sender<bool>>,
-        mut shutdown_rx: watch::Receiver<bool>,
-    ) {
-        let max_conns = self.max_conns;
-        info!(%max_conns, "tcp accept loop started");
-
-        loop {
-            let accept = tokio::select! {
-                biased;
-                _ = shutdown_rx.wait_for(|v| *v) => break,
-                r = tcp_listener.accept() => r,
-            };
-
-            match accept {
-                Err(err) => error!(%err, "tcp_accept"),
-                Ok((mut tcp_stream, peer_addr)) => {
-                    // let peer_port = peer_addr.port();
-                    // let peer_addr = peer_addr.ip();
-
-                    let conn_semaphore = self.conn_semaphore.clone();
-                    let permit = match conn_semaphore.clone().try_acquire_owned() {
-                        Ok(permit) => {
-                            let current_conns = max_conns - conn_semaphore.available_permits();
-                            info!(%current_conns, %max_conns, %peer_addr, "tcp_accept");
-                            permit
-                        }
-                        Err(_err) => {
-                            error!(%peer_addr, "max_conns over");
-                            use tokio::io::AsyncWriteExt;
-                            if let Err(err) = tcp_stream.shutdown().await {
-                                error!(%err, %peer_addr, "failed to tcp_stream.shutdown()");
-                            }
-                            continue;
-                        }
-                    };
-
-                    let tls = self.tls.clone();
-                    let http2 = self.http2.clone();
-                    let service = self.service.clone();
-
-                    let tcp_sess = TcpSession {
-                        shutdown_rx: shutdown_tx.subscribe(),
-                        permit,
-                        tls,
-                        http2,
-                        service,
-                        tcp_stream,
-                    };
-
-                    tokio::task::spawn(
-                        async move {
-                            tcp_sess.begin().await;
-                            info!("tcp session finished");
-                        }
-                        .instrument(span!(Level::ERROR, "tcp_session", %peer_addr)),
-                    );
-                }
-            }
-        }
-
-        info!(%max_conns, "tcp accept loop finished");
-
-        info!("waiting shutdown...");
-
-        _ = self
-            .conn_semaphore
-            .acquire_many(self.max_conns as u32)
-            .await
-            .unwrap();
-
-        info!("shutdown complete");
     }
 }

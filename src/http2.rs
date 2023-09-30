@@ -5,11 +5,11 @@ use tokio::sync::{watch, OwnedSemaphorePermit};
 use tracing::{error, info};
 
 pub(crate) struct Http2<I, S> {
-    pub(crate) shutdown_rx: watch::Receiver<bool>,
-    pub(crate) permit: OwnedSemaphorePermit,
-    pub(crate) http2: Arc<hyper::server::conn::http2::Builder<TokioExecutor>>,
-    pub(crate) io: I,
-    pub(crate) service: S,
+    pub shutdown_rx: watch::Receiver<bool>,
+    pub permit: OwnedSemaphorePermit,
+    pub http2: Arc<hyper::server::conn::http2::Builder<TokioExecutor>>,
+    pub io: I,
+    pub service: S,
 }
 
 impl<I, S, B> Http2<I, S>
@@ -36,7 +36,7 @@ where
 
         let conn = http2.serve_connection(io, service);
 
-        info!("http2 connection started");
+        info!("start");
 
         enum Status {
             Shutdown,
@@ -53,7 +53,7 @@ where
             Status::Shutdown => {
                 // Pin::new(&mut conn).graceful_shutdown();
                 // if let Err(err) = conn.await {
-                //     error!(%err, "http2 connection finished with error");
+                //     error!(%err, "finish");
                 // }
             }
             Status::Finish(Err(err)) => {
@@ -62,16 +62,16 @@ where
                 if let Some(err) = err.source() {
                     if let Some(io_err) = err.downcast_ref::<std::io::Error>() {
                         if let ErrorKind::UnexpectedEof = io_err.kind() {
-                            info!("http2 connection finished");
+                            info!("finish");
                             drop(permit);
                             return;
                         }
                     }
                 }
-                error!(%err, "http2 connection finished with error");
+                error!(%err, "finish");
             }
             Status::Finish(Ok(())) => {
-                info!("http2 connection finished");
+                info!("finish");
             }
         }
         drop(permit);

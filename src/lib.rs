@@ -3,7 +3,9 @@ mod handle;
 mod http2;
 mod server;
 mod stats;
-mod tcp;
+mod tcp_accept;
+mod tcp_session;
+mod tls_accept;
 
 // from: https://github.com/hyperium/hyper/blob/master/benches/support/tokiort.rs
 // rev: f9f65b7
