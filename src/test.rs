@@ -8,7 +8,7 @@ use hyper::{Request, Response};
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use tokio::net::TcpStream;
-use tracing::error;
+use tracing::{error, info};
 
 type AnyError = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, AnyError>;
@@ -102,6 +102,7 @@ async fn test() {
     let mut send_req6 = connect(addr).await.unwrap();
     assert!(request(&mut send_req6).await.is_ok());
 
+    info!("start shutdowning server");
     svh.shutdown().await;
 }
 

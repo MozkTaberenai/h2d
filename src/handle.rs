@@ -1,10 +1,11 @@
 use crate::Stats;
+use event_listener::Event;
 use std::sync::{Arc, Mutex};
-use tokio::sync::{watch, Semaphore};
+use tokio::sync::Semaphore;
 
 #[derive(Debug, Clone)]
 pub struct Handle {
-    shutdown_tx: Arc<watch::Sender<bool>>,
+    shutdown: Arc<Event>,
     join_handle: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
     max_conns: usize,
     conn_semaphore: Arc<Semaphore>,
@@ -12,13 +13,13 @@ pub struct Handle {
 
 impl Handle {
     pub(crate) fn new(
-        shutdown_tx: Arc<watch::Sender<bool>>,
+        shutdown: Arc<Event>,
         join_handle: tokio::task::JoinHandle<()>,
         max_conns: usize,
         conn_semaphore: Arc<Semaphore>,
     ) -> Self {
         Self {
-            shutdown_tx,
+            shutdown,
             join_handle: Arc::new(Mutex::new(Some(join_handle))),
             max_conns,
             conn_semaphore,
@@ -35,7 +36,7 @@ impl Handle {
     }
 
     pub async fn shutdown(&self) {
-        self.shutdown_tx.send(true).unwrap();
+        self.shutdown.notify(usize::MAX);
         let join_handle = self.join_handle.lock().unwrap().take();
         if let Some(join_handle) = join_handle {
             join_handle.await.unwrap();

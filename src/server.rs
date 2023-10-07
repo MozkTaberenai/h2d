@@ -1,10 +1,11 @@
-use crate::tcp_accept::TcpAcceptLoop;
+use crate::tcp::TcpAcceptLoop;
 use crate::tokiort::*;
 use crate::Handle;
+use event_listener::Event;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tokio::sync::{watch, Semaphore};
+use tokio::sync::Semaphore;
 use tokio_rustls::TlsAcceptor;
 use tracing::info;
 
@@ -44,7 +45,11 @@ pub struct Server<S> {
 
 impl<S, B> Server<S>
 where
-    S: hyper::service::HttpService<hyper::body::Incoming, ResBody = B> + Clone + Send + 'static,
+    S: hyper::service::HttpService<hyper::body::Incoming, ResBody = B>
+        + Clone
+        + Send
+        + 'static
+        + Unpin,
     S::Future: Send,
     S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     B: http_body::Body + Send + 'static,
@@ -59,8 +64,8 @@ where
 
         info!(%listen_on);
 
-        let (shutdown_tx, shutdown_rx) = watch::channel(false);
-        let shutdown_tx = Arc::new(shutdown_tx);
+        let shutdown = Arc::new(Event::new());
+        let shutdown_listener = shutdown.listen();
 
         let tcp_accept_loop = TcpAcceptLoop {
             max_conns: self.max_conns,
@@ -69,14 +74,21 @@ where
             http2: self.http2,
             service: self.service,
             tcp_listener,
-            shutdown_tx: shutdown_tx.clone(),
-            shutdown_rx,
+            shutdown: shutdown.clone(),
+            shutdown_listener,
         };
 
-        let join_handle = tokio::task::spawn(tcp_accept_loop.run());
+        let max_conns = self.max_conns;
+        let conn_semaphore = self.conn_semaphore.clone();
+        let join_handle = tokio::spawn(async move {
+            tcp_accept_loop.await;
+            info!("waiting shutdown...");
+            _ = conn_semaphore.acquire_many(max_conns as u32).await.unwrap();
+            info!("shutdown complete");
+        });
 
         Ok(Handle::new(
-            shutdown_tx,
+            shutdown,
             join_handle,
             self.max_conns,
             self.conn_semaphore,

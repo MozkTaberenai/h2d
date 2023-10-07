@@ -1,15 +1,20 @@
 use crate::tokiort::*;
+use event_listener::EventListener;
 use hyper::service::HttpService;
+use hyper::{body::Incoming, server::conn::http2::Connection};
+use std::future::Future;
+use std::net::SocketAddr;
+use std::pin::Pin;
 use std::sync::Arc;
-use tokio::sync::{watch, OwnedSemaphorePermit};
+use std::task::{Context, Poll};
+use tokio::sync::OwnedSemaphorePermit;
 use tracing::{error, info};
 
-pub(crate) struct Http2<I, S> {
-    pub shutdown_rx: watch::Receiver<bool>,
-    pub permit: OwnedSemaphorePermit,
-    pub http2: Arc<hyper::server::conn::http2::Builder<TokioExecutor>>,
-    pub io: I,
-    pub service: S,
+pub(crate) struct Http2<I, S: hyper::service::HttpService<Incoming>> {
+    peer_addr: SocketAddr,
+    _permit: OwnedSemaphorePermit,
+    shutdown: Pin<Box<EventListener>>,
+    conn: Connection<I, S, TokioExecutor>,
 }
 
 impl<I, S, B> Http2<I, S>
@@ -22,58 +27,63 @@ where
     B::Data: Send + Sync,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    pub async fn serve(self)
-    where
-        I: hyper::rt::Read + hyper::rt::Write + Unpin + 'static,
-    {
-        let Self {
-            mut shutdown_rx,
-            permit,
-            http2,
-            io,
-            service,
-        } = self;
+    pub fn new(
+        peer_addr: SocketAddr,
+        permit: OwnedSemaphorePermit,
+        shutdown: Pin<Box<EventListener>>,
+        http2: Arc<hyper::server::conn::http2::Builder<TokioExecutor>>,
+        io: I,
+        service: S,
+    ) -> Self {
+        info!(%peer_addr, "start");
+        Self {
+            peer_addr,
+            shutdown,
+            _permit: permit,
+            conn: http2.serve_connection(io, service),
+        }
+    }
+}
 
-        let conn = http2.serve_connection(io, service);
+impl<I, S, B> Future for Http2<I, S>
+where
+    I: hyper::rt::Read + hyper::rt::Write + Unpin + 'static,
+    S: HttpService<hyper::body::Incoming, ResBody = B> + Clone + Send + 'static,
+    S::Future: Send,
+    S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    B: http_body::Body + Send + 'static,
+    B::Data: Send + Sync,
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    type Output = ();
 
-        info!("start");
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let peer_addr = self.peer_addr;
 
-        enum Status {
-            Shutdown,
-            Finish(Result<(), hyper::Error>),
+        if self.shutdown.as_mut().poll(cx).is_ready() {
+            return Poll::Ready(());
         }
 
-        let status = tokio::select! {
-            biased;
-            _ = shutdown_rx.wait_for(|v| *v) => Status::Shutdown,
-            r = conn => Status::Finish(r),
-        };
-
-        match status {
-            Status::Shutdown => {
-                // Pin::new(&mut conn).graceful_shutdown();
-                // if let Err(err) = conn.await {
-                //     error!(%err, "finish");
-                // }
-            }
-            Status::Finish(Err(err)) => {
+        match Pin::new(&mut self.conn).poll(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(Err(err)) => {
                 use std::error::Error;
                 use std::io::ErrorKind;
                 if let Some(err) = err.source() {
                     if let Some(io_err) = err.downcast_ref::<std::io::Error>() {
                         if let ErrorKind::UnexpectedEof = io_err.kind() {
-                            info!("finish");
-                            drop(permit);
-                            return;
+                            info!(%peer_addr, "finish");
+                            return Poll::Ready(());
                         }
                     }
                 }
-                error!(%err, "finish");
+                error!(%err, %peer_addr, "finish");
+                Poll::Ready(())
             }
-            Status::Finish(Ok(())) => {
-                info!("finish");
+            Poll::Ready(Ok(())) => {
+                info!(%peer_addr, "finish");
+                Poll::Ready(())
             }
         }
-        drop(permit);
     }
 }
