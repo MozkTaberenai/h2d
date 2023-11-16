@@ -7,7 +7,7 @@ license-file = "LICENSE"
 [dependencies]
 bytes = "1.5.0"
 event-listener = "3.0.0"
-http-body = "=1.0.0"
+http-body = "1.0.0"
 hyper = { version = "1.0.0", features = ["server", "http2"] }
 pin-project-lite = "0.2.13"
 rustls = "0.21.7"
