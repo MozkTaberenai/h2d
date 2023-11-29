@@ -1,10 +1,9 @@
 use super::*;
-use crate::tokiort::TokioExecutor;
-use crate::tokiort::*;
 use bytes::Bytes;
 use http_body_util::{BodyExt, Empty, Full};
 use hyper::body::Incoming;
 use hyper::{Request, Response};
+use hyper_util::rt::{TokioExecutor, TokioIo};
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use tokio::net::TcpStream;
@@ -116,7 +115,7 @@ async fn connect(
     let stream = TcpStream::connect(addr).await?;
 
     let (send_req, conn) = hyper::client::conn::http2::handshake::<_, _, Empty<Bytes>>(
-        TokioExecutor,
+        TokioExecutor::new(),
         TokioIo::new(stream),
     )
     .await?;

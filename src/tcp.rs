@@ -1,7 +1,7 @@
 use crate::http2::Http2;
 use crate::tls::TlsAccept;
-use crate::tokiort::*;
 use event_listener::{Event, EventListener};
+use hyper_util::rt::{TokioExecutor, TokioIo};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;

@@ -1,8 +1,7 @@
-use crate::tokiort::*;
 use crate::Server;
+use hyper_util::rt::TokioExecutor;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::Semaphore;
 use tokio_rustls::TlsAcceptor;
 
@@ -19,7 +18,7 @@ impl Config {
             socket_addr,
             max_conns: 10000,
             tls: None,
-            http2: hyper::server::conn::http2::Builder::new(TokioExecutor),
+            http2: hyper::server::conn::http2::Builder::new(TokioExecutor::new()),
         }
     }
 
@@ -38,13 +37,13 @@ impl Config {
         self
     }
 
-    pub fn use_keep_alive(mut self) -> Self {
-        self.http2
-            .timer(TokioTimer)
-            .adaptive_window(true)
-            .keep_alive_interval(Some(Duration::from_secs(60)));
-        self
-    }
+    // pub fn use_keep_alive(mut self) -> Self {
+    //     self.http2
+    //         .timer(TokioTimer)
+    //         .adaptive_window(true)
+    //         .keep_alive_interval(Some(Duration::from_secs(60)));
+    //     self
+    // }
 
     pub fn use_tls(mut self, mut server_config: rustls::ServerConfig) -> Self {
         server_config.alpn_protocols = vec![b"h2".to_vec()];
