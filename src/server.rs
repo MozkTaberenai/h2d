@@ -65,7 +65,7 @@ where
         info!(%listen_on);
 
         let shutdown = Arc::new(Event::new());
-        let shutdown_listener = shutdown.listen();
+        let shutdown_listener = Box::pin(shutdown.listen());
 
         let tcp_accept_loop = TcpAcceptLoop {
             max_conns: self.max_conns,

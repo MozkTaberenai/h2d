@@ -69,7 +69,7 @@ where
                         }
                     };
 
-                    let mut shutdown = self.shutdown.listen();
+                    let mut shutdown = Box::pin(self.shutdown.listen());
 
                     match self.tls {
                         None => {
