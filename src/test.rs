@@ -15,7 +15,8 @@ type Result<T> = std::result::Result<T, AnyError>;
 #[tokio::test]
 async fn test() {
     if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var("RUST_LOG", "info");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { std::env::set_var("RUST_LOG", "info") };
     }
 
     let ansi = std::env::var_os("NO_COLOR").is_none();
