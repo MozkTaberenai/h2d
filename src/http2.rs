@@ -2,7 +2,6 @@ use event_listener::EventListener;
 use hyper::service::HttpService;
 use hyper::{body::Incoming, server::conn::http2::Connection};
 use hyper_util::rt::TokioExecutor;
-use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;

@@ -1,12 +1,11 @@
 use event_listener::EventListener;
-use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::net::TcpStream;
-use tokio::time::{sleep, Sleep};
-use tokio_rustls::server::TlsStream;
+use tokio::time::{Sleep, sleep};
 use tokio_rustls::Accept;
+use tokio_rustls::server::TlsStream;
 use tracing::{error, info};
 
 pin_project_lite::pin_project! {
